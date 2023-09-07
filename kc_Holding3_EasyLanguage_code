@@ -1,0 +1,426 @@
+{instead of finding a fib candle, then waiting to see if a 2nd bar will form nicely. We wait for a qualified 2nd bar first, then we check for fib bar and take trade.	}
+
+Input:
+	ACBStarttime( 0830 ),
+	ACBEndtime( 1500 ),
+	Percent_of_Risk_T1( 1 ); //This is % of risk. .50 for risk of 1 and reward of .50
+	//Ticks_target( 10 ),
+	//TickSize( .25 );
+
+
+[Intrabarordergeneration = true];
+Once Clearprintlog;
+Vars:
+//bull
+//variables inside a barstatus = 2 statement should NOT be intrabarpersist. Although sometimes they work while being intrabarpersist, there is no use in doing so. 
+ 	BullFib_Bottomwick(0), 
+	 BullFib_Upperwick(0),
+	 BullFib_Range(0),
+	BullFib(False),
+	Intrabarpersist BullSixtysix(0),
+	 BullSecondBarLow(0),
+	 BullSecondBar_Range(0),
+	BullSecondBar_Upperwick(0),
+	 BullSecondBar_Bottomwick(0),
+	 BullSecondBar_CandlebodyRange(0),
+	BullFib_CandlebodyRange(0),
+	intrabarpersist BullTarget(0),
+	Intrabarpersist BullCondition(False),
+	Intrabarpersist BullTargetFar(0),
+	Intrabarpersist BullMoveStop(0),
+
+//bear	
+	 BearFib_Bottomwick(0),
+	 BearFib_Upperwick(0),
+	 BearFib_Range(0),
+	BearFib(False),
+	 SecondBar_Range(0),
+	 SecondBar_Upperwick(0),
+	 SecondBar_Bottomwick(0),
+	intrabarpersist Targett(0),
+	 BearFib_CandlebodyRange(0),
+	 SecondBar_CandlebodyRange(0),
+	intrabarpersist BearsixtySix(0),
+	Intrabarpersist BearCondition(False), 
+	Intrabarpersist BearTargetFar(0),
+	Intrabarpersist BearMoveStop(0),
+	 BearFib_OpenLow_Range(0),
+	 BullFib_OpenHigh_Range(0),
+	
+	Intrabarpersist ShorttermATR(0),
+	Intrabarpersist ATR(0),
+	Intrabarpersist LongTermATR(0),
+	count(0),
+	Insideonesd(0),
+	Insidetwosd(0),
+	TruerangeSD(0),
+	TruerangeStandardDev(0),
+	ii(0),
+	num(100),
+	iii(0),
+	
+	Intrabarpersist  BullTargetone(0),
+	Intrabarpersist BullTargettwo(0),
+	Intrabarpersist BullTargetthree(0),
+	Intrabarpersist BullTargetfour(0),
+	Intrabarpersist BullTargetfive(0),
+	Intrabarpersist BullTargetsix(0),
+	Intrabarpersist BullSecondBarLowStop(0),
+	
+	Intrabarpersist BearTargetone(0),
+	Intrabarpersist BearTargettwo(0),
+	Intrabarpersist BearTargetthree(0),
+	Intrabarpersist BearTargetfour(0),
+	Intrabarpersist BearTargetfive(0),
+	Intrabarpersist BearTargetsix(0),
+	Intrabarpersist BearSecondBarhighStop(0),
+	Intrabarpersist Bear2ndBarLow(0),
+	Intrabarpersist Bull2ndBarhigh(0),
+	
+	counter(0),
+	min60Counter(0),
+	min60Array2SUM(0),
+	min60Array2AVG(0),
+	min60Counter2(0),
+	variance(0),
+	pop(0),
+	sumArraySUM(0),
+	ACBLength(24),
+	Intrabarpersist TimeCheck(false),
+	Intrabarpersist target1(0),
+	Intrabarpersist T1(0),
+	Intrabarpersist T11(0),
+	Intrabarpersist bull2ndbarLow(0),
+	Intrabarpersist bear2ndbarHigh(0),
+	Intrabarpersist BearRiskBox(0),
+	Intrabarpersist BullRiskBox(0);
+	
+	
+		
+arrays:
+		min60Array[] (0),
+		min60Array2[] (0),
+		TRArray[] (0),
+		ATRArray[] (0),
+		DateArray[] (0),
+		SumArray[] (0);
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//ATR:
+If barstatus(1) = 2 then 
+Begin
+//target1 = ticksize * Ticks_target;
+
+
+
+	
+If time >= ACBStarttime and time <= ACBEndtime then
+begin
+{if bartype = 1 and barinterval = 60 then //9,10,11,12,13,14,15}
+BEGIN
+	min60Counter = min60Counter + 1;
+	
+	Array_setmaxindex(min60Array, min60Counter); 
+	min60Array[min60Counter] = TRUEcandlebodyRANGE[0];	
+	//When counter is 96, remember to go back just 24. so from 72 to 96
+	if min60Counter > ACBLength then
+	begin
+		//Condition1 = true;
+		For ii = min60Counter downto (min60Counter-ACBLength)
+		Begin
+			If ii = min60counter then min60counter2 = 0;
+			min60counter2 = min60counter2 + 1;
+			
+			array_setmaxindex(min60Array2, 	min60counter2);
+			min60Array2[min60Counter2] = min60Array[ii]; 	
+			If min60Counter2 = ACBLength then	//once we have 24 true ranges, compute avg
+			Begin
+				min60Array2SUM = array_sum(min60Array2, 0, min60Counter2);
+{this is the ATR} Min60Array2AVG = iff(min60Counter2 <> 0, min60Array2SUM / min60Counter2, 1);//compute avg of the 24 true ranges. 
+				
+				
+				//SD
+				counter = counter + 1;
+				array_setmaxindex(TRArray, counter);
+				TRArray[counter] = TRUEcandlebodyRANGE;
+				array_setmaxindex(ATRArray, counter);
+				ATRArray[counter] = Min60Array2AVG;
+				array_setmaxindex(DateArray, counter);//just to check date
+				DateArray[counter] = Date;//just to check date
+				If counter > 100 then
+				Begin
+					For iii = counter downto (counter-100)
+					Begin
+						Array_setmaxindex(SumArray, counter);
+						SumArray[iii] = Power((TRArray[iii]-ATRArray[iii]),2);
+						sumArraySUM = array_sum(SumArray, iii, counter);
+						pop = counter - iii;
+						variance = iff(pop<>0, sumArraySUM / pop ,1);
+						TruerangeStandardDev = Squareroot(variance);
+		//Print(counter, "   ", iii,"   ",TRarray[iii],"  ", ATRArray[iii]);
+					end;
+				end;		
+
+			End;
+		End;
+	End;
+			
+END;
+end;//time-end		
+End;//barstatus	
+	
+////////////////////////////////////////////////////////////////////////////////
+If barstatus(1) = 1 then 
+Begin
+	If time >= ACBStarttime  and time <= ACBEndtime then TimeCheck = true else Timecheck = false;
+	if dayofweek(date) = 5 and time > 1415 then Timecheck = false;
+End;
+
+
+
+
+If barstatus(1) = 2 then 
+Begin
+
+	//BEAR SECOND BAR 
+	//FROM A 2ND BAR PERSPECTIVE
+	if marketposition = 0 then
+	Begin
+		BearFib_Bottomwick = (close[1] - low[1]);
+		BearFib_Upperwick = (High[1] - open[1]);
+		BearFib_Range = (High[1] - Low[1]);
+		BearFib_CandlebodyRange = (Open[1] - close[1]);
+		Bearfib_openLow_Range = (open[1] - low[1]);
+	
+		SecondBar_Range = (High - low);
+		SecondBar_Upperwick = (High - open);
+		SecondBar_Bottomwick = (close - Low);	
+		SecondBar_CandlebodyRange = (Open - close);
+		
+		if SecondBar_Upperwick < Secondbar_Bottomwick 
+		and
+		SecondBar_Bottomwick > (SecondBar_Range * .25)	//could change to .50. bigger wick to beat. 
+		and 
+		close <= (Low +(SecondBar_Range*.66)) and close >= (Low +(SecondBar_Range*.33)) //closes in the middleThird of it's range.  
+		and 
+		SecondBar_CandlebodyRange < (BearFib_CandlebodyRange*.50)	//very broad. good
+		and
+		high <= (low[1] + (BearFib_OpenLow_Range * .66))//(Bearsixtysix)
+		And	
+		high > close[1] //2nd bar must retrace a little bit into the bull fib bar
+		and
+		Low < Low[1] //must go further than fib candle(uptrend)
+		And
+		Open > close	//Must finish bearish
+		Then BearCondition = true
+		Else
+		BearCondition = False;
+	End;
+		
+	//BEAR FIB	
+	if marketposition = 0 and Bearcondition = true then
+	begin
+		if BearFib_upperwick <= (BearFib_Range * .33) //upper wick should not be greater than (15%) of the range
+		And
+		TrueCandlebodyrange[1] >= (Min60Array2AVG )	//Move must be substantial, and will take great effort to get back.
+		and
+		BearFib_CandlebodyRange / BearFib_Range > .50 	//Body must be big compared to the wicks
+		and
+		close[1] <=  (low[1] + (BearFib_Range * .40))	//fib candle closes strong in that direction. so can't close at 50% of it's range
+		Then 
+		BearFib = true
+		Else 
+		BearFib = False;
+	End;
+	
+	//RESET
+	If marketposition = 0 and (Bearcondition = false or bearFib = false) then 
+	Begin
+		BearCondition = false;
+		BearFib = false;
+	End;
+	
+	//Bear Entry
+	If marketposition = 0 and BearCondition = true and BearFib = true then
+	Begin 
+		Bear2ndBarLow = low;
+		Bear2ndbarHigh = High;
+		BearRiskBox = Bear2ndbarHigh - Bear2ndBarLow;
+		//sellshort("Short") 1 contracts next bar at market;
+		BearsixtySix = close[1] + ((open[1]-close[1]) * .50);	
+		BearTargetone = close - ((Bearfib_Range)*.50);
+		BearTargettwo = close - ((open[1]-close[1])*1);
+		BearTargetthree = close - ((open[1]-close[1])*2);
+		BearTargetfour = close - ((open[1]-close[1])*3);
+		BearTargetfive = close - ((open[1]-close[1])*4);
+		BearTargetsix = close - ((open[1]-close[1])*5);
+		//BearTargetFar = close[1] - ((open[1]-close[1])*);
+		BearMoveStop = ((open[1]-close[1])/.25)*1.25; //From T1 to entryprice is the trailstop risk.
+		BearSecondBarHighStop = high;
+		//end;
+	End;
+	
+	
+END;
+	
+///////////////////////////////////////////////////////////////////////////////////////////////////
+{---------------------------------------------------------------------------------------------------}
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+If barstatus(1) = 2 then 
+Begin
+	
+	//BULL SECOND BAR	 
+	if marketposition = 0 Then
+	Begin
+		BullFib_Bottomwick = (Open[1] - low[1]);
+		BullFib_Upperwick = (High[1] - close[1]);
+		BullFib_Range = (High[1] - Low[1]);
+		BullFib_CandlebodyRange = (Close[1] - open[1]);
+		BullFib_OpenHigh_Range = (High[1] - open[1]);
+	
+		BullSecondBar_Range = (High - low);
+		BullSecondBar_Upperwick = (High - close);
+		BullSecondBar_Bottomwick = (Open - Low);	
+		BullSecondBar_CandlebodyRange = (close-open);
+		
+		If BullSecondBar_Upperwick > BullSecondBar_Bottomwick  
+		and
+		BullSecondBar_Range < (Bullfib_Range * .66)	//2nd bar range must be smaller than fib bar range
+		And 
+		BullSecondBar_Upperwick >= (BullSecondBar_Range*.25)
+		And
+		close[0] >= (High[0] - (BullSecondBar_Range * .66)) and close[0] <=  (High[0] - (BullSecondBar_Range * .33))
+		And 
+		BullSecondBar_CandlebodyRange < (BullFib_CandlebodyRange *.50)	
+		and
+		low[0] >= (high[1] - (BullFib_OpenHigh_Range * .66)) //2nd bar retracement(Where we place our stop), should not be more than 50% retracement on the bull fib bar 
+		And	
+		Low < close[1] //2nd bar must retrace a little bit into the bull fib bar
+		and
+		High > high[1] //must go further than fib candle(uptrend)
+		And
+		Close[0] > open[0]	//Must finish bullish
+		Then BullCondition = true
+		Else
+		BullCondition = false;
+	End;
+	
+
+	//BULL FIB
+	If marketposition = 0 and Bullcondition = true then
+	Begin
+		if BullFib_Bottomwick <= (BullFib_Range * .33) //bottom wick should not be greater than (15%) of the range
+		And
+		TrueCandlebodyrange[1] >= (Min60Array2AVG )	//Move must be substantial, and will take great effort to get back.
+		and
+		BullFib_CandlebodyRange / BullFib_Range > .50 	//wicks are not as big as the body. 
+		And
+		close[1] >=  (high[1] - (BullFib_Range * .40))	//Needs a top wick, but not too big of a top wick. Compared to Candlebody Range
+		Then 
+		BullFib = true
+		Else 
+		BullFib = false;
+	End;	
+	
+	//RESET
+	If marketposition = 0 and (Bullcondition = false or BullFib = false) then 
+	Begin
+		BullCondition = false;
+		BullFib = false;
+	End;
+	
+	//Bull Entry
+	If marketposition = 0 and BullCondition = true and BullFib = true then
+	Begin
+		Bull2ndbarHigh = high;
+		bull2ndbarLow = Low;
+		BullRiskBox = Bull2ndbarHigh - bull2ndbarLow;
+		//Buy 1 contracts next bar at market;
+		BullsixtySix = close[1] - ((close[1]-open[1]) * .50);	
+		BullTargetone = close + (bullfib_Range*.50);
+		BullTargettwo = close + ((close[1]-Open[1])*1);
+		BullTargetthree = close + ((close[1]-Open[1])*2);
+		BullTargetfour = close + ((close[1]-Open[1])*3);
+		BullTargetfive = close + ((close[1]-Open[1])*4);
+		BullTargetsix = close + ((close[1]-Open[1])*5);
+		//BullTargetFar = close + ((close[1]-Open[1])*2);
+		BullMoveStop = ((close[1]-Open[1])/.25)*1.25; //from T1 to entryprice is the trailstop risk.
+		BullSecondBarLowStop = low;
+		//end;
+	End;
+
+
+
+//If date = 1201006 and time = 0718 then print(BullsixtySix,"  ", high[0],"   ",  marketposition,"   ", BullTarget);
+
+	
+END;
+
+If barstatus(1) = 1 then
+Begin
+
+	If marketposition = 0 and BullCondition = true and BullFib = true and timeCheck = true and (barssinceexit(1) > 1 or TotalTrades < 1) and Min60Array2AVG > 0 {and (bull2ndbarHigh - bull2ndbarlow) < (Ticksize*4)}
+	then Begin
+		If high > bull2ndbarHigh then Buy 1 contracts next bar at market;
+		{move stop in case entry bar low is less than 2ndbar's low.} If low < bull2ndbarLow then BullSecondbarLowStop = low;
+	end;
+	If marketposition = 0 and BearCondition = true and BearFib = true and timeCheck = true and (barssinceexit(1) > 1 or TotalTrades < 1) and Min60Array2AVG > 0 {and (bear2ndbarHigh - bear2ndbarlow) < (Ticksize*4)}
+	then Begin 
+		If low < bear2ndbarLow then Sellshort 1 contracts next bar at market;
+		{move stop in case entry bar high is greater than 2ndbar's high.} If high > bear2ndbarhigh then BearSecondbarHighStop = high;
+	end;
+
+	//Bear EXITS
+	If marketposition = -1 then
+		Begin
+			{if currentcontracts > 4 then} Buytocover("stop.") 1 contracts next bar at bearsecondbarhighstop stop;
+			//buytocover("T1.")1 contract next bar at BearTargetone limit;
+			buytocover("T2.")1 contract next bar at entryprice - (bearriskbox * Percent_of_Risk_T1){(Entryprice - Target1)} limit;
+			//buytocover("T3.")1 contract next bar at BearTargetthree limit;
+			
+			//buytocover("T2.")1 contract next bar at BearTargetFar limit;
+			
+			//{If close <= BearTargettwo}If currentcontracts = 4 then buytocover 4 contracts next bar at BearSecondbarHighstop stop;
+			//{If close <= BearTargetthree} If currentcontracts = 3 then buytocover 3 contracts next bar at Beartargetone stop;
+			//{If close <= BearTargetfour} If currentcontracts =  2 then buytocover 2 contracts next bar at entryprice stop;
+			//{If close <= BearTargetfive} If currentcontracts = 1 then setdollartrailing(BearmoveStop);
+				
+		end;	
+		
+	//Bull exits
+		If marketposition = 1 then
+		Begin
+			{if currentcontracts > 4 then} Sell("stop") 1 contract next bar at Bullsecondbarlowstop stop;
+			//Sell("T1") 1 contract next bar at BullTargetone limit;
+			Sell("T2") 1 contract next bar at Entryprice + (BullRiskBox * Percent_of_Risk_T1){Entryprice + target1)} limit;
+			//Sell("T3") 1 contract next bar at BullTargetthree limit;	
+			
+			//{If close >= Bulltargettwo} If currentcontracts = 4 then sell 4 contracts next bar at BullSecondbarLOWstop stop;
+			//{If close >= Bulltargetthree} If currentcontracts = 3 then sell 3 contracts next bar at bulltargetone stop;
+			//{If close >= Bulltargetfour} If currentcontracts = 2 then sell 2 contracts next bar at entryprice stop;
+			//{If close >= Bulltargetfive} If currentcontracts = 1 then setdollartrailing(Bullmovestop);
+	
+			//Sell("T2") 1 contract next bar at BullTargetFar limit;
+		end;		
+END;	
+		
+	//If T1 is hit, move stop:
+	{If currentcontracts = 1 then
+	Begin
+		If marketposition = 1 then setdollartrailing(BullmoveStop);//Sell("stopMoved") 1 contract next bar at Bullmovestop stop;
+		If marketposition = -1 then setdollartrailing(BearmoveStop);//Buytocover("stopMoved.") 1 contract next bar at Bearmovestop stop;
+	End;
+End;}
+
+
+//If hourly candle is red you can short, and vice versa.
+//if time  = 0000 then xtime = time; xtimeClose = close; 
+//if time = xtime + 100 then xtime = time; xtimeClose = close; else no change.
+//if time = 2345 then reset xtime.
+//if close > then xtimeClose then hourlygreen is true
+//If close < xtimeClose then hourlyred is true
+
+////Important. If the 2nd bar is big, we lose out on profit, and risk increases. 
+//Two SEPARATE Strategies: 1. entry if 2nd bar is small.    2.entry limit order at the "Split", if 2nd bar is big. //Measured in Candlebody Range
